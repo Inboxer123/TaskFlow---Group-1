@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskFlow - To-Do Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bg:     '#0D111E',
+                        card:   '#161B2D',
+                        input:  '#1E243A',
+                        border: '#2C3652',
+                        blue:   '#60A5FA',
+                        green:  '#4ADE80',
+                        red:    '#F87171',
+                        gold:   '#FBBF24',
+                        text:   '#E2E8F0',
+                        muted:  '#64748B',
+                        sel:    '#2563EB',
+                    },
+                    fontFamily: {
+                        sans: ['"Segoe UI"', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .input-style {
+                @apply bg-input text-text border border-border rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue;
+            }
+            .btn-style {
+                @apply font-bold py-2 px-4 rounded cursor-pointer transition-opacity hover:opacity-90;
+            }
+        }
+    </style>
+</head>
+<body class="bg-bg text-text font-sans h-screen flex flex-col overflow-hidden">
+
+    <!-- ===== HEADER ===== -->
+    <header class="bg-card border-b border-border h-[60px] flex items-center justify-between px-6 shrink-0">
+        <div class="flex flex-col">
+            <!-- TaskFlow title slightly larger (~2.3rem), bold blue, kept compact -->
+            <h1 class="text-blue font-bold leading-tight" style="font-size:2.3rem;">TaskFlow</h1>
+            <p class="text-muted text-xs">Your tasks, your flow.</p>
+        </div>
+        <div id="stats" class="text-muted text-sm font-bold">
+            0 tasks | 0 pending | 0 done
+        </div>
+    </header>
+
+    <!-- ===== MAIN ===== -->
+    <main class="flex flex-1 overflow-hidden p-4 gap-4">
+
+        <!-- LEFT PANEL: ADD TASK FORM -->
+        <aside class="w-[255px] bg-card border border-border rounded p-5 flex flex-col shrink-0">
+            <h2 class="text-blue font-bold text-lg mb-4">Add New Task</h2>
+
+            <label class="text-muted font-bold text-xs mb-1">Category</label>
+            <select id="category" class="input-style mb-3">
+                <option value="Personal">Personal</option>
+                <option value="School">School</option>
+                <option value="Work">Work</option>
+            </select>
+
+            <label class="text-muted font-bold text-xs mb-1">Title *</label>
+            <input type="text" id="title" placeholder="Enter task title..."
+                   class="input-style mb-3" maxlength="80">
+
+            <label class="text-muted font-bold text-xs mb-1">Description</label>
+            <textarea id="description" rows="3" placeholder="Optional..."
+                      class="input-style mb-3 resize-none"></textarea>
+
+            <label class="text-muted font-bold text-xs mb-1">Priority</label>
+            <select id="priority" class="input-style mb-3">
+                <option value="LOW">LOW</option>
+                <option value="MEDIUM">MEDIUM</option>
+                <option value="HIGH">HIGH</option>
+            </select>
+
+            <!-- Deadline field — used by ALL categories, no Location anywhere -->
+            <label class="text-muted font-bold text-xs mb-1">Deadline *</label>
+            <input type="text" id="deadline" placeholder="YYYY-MM-DD"
+                   class="input-style mb-1">
+            <p class="text-muted text-xs mb-5">Format: YYYY-MM-DD</p>
+
+            <button id="btnAdd"   class="btn-style bg-blue text-bg mb-2">Add Task</button>
+            <button id="btnClear" class="btn-style bg-input text-muted">Clear</button>
+        </aside>
+
+        <!-- RIGHT PANEL: TABLE -->
+        <section class="flex-1 flex flex-col min-w-0">
+
+            <!-- TOOLBAR -->
+            <div class="flex items-center gap-4 mb-4">
+                <span class="text-muted text-sm font-bold">Filter:</span>
+                <select id="filter" class="input-style !w-[130px] !h-[30px]">
+                    <option value="All">All</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Completed">Completed</option>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                </select>
+
+                <div class="h-5 border-l border-border mx-2"></div>
+
+                <button id="btnToggle" class="btn-style bg-green text-bg">Toggle Done</button>
+                <button id="btnDelete" class="btn-style bg-red   text-bg">Delete</button>
+                <button id="btnSort"   class="btn-style bg-gold  text-bg">Sort Priority</button>
+            </div>
+
+            <!-- TABLE: Location column fully removed, Deadline shown for all tasks -->
+            <div class="flex-1 overflow-auto border border-border rounded bg-card">
+                <table class="w-full text-sm">
+                    <thead class="bg-input text-muted uppercase text-xs sticky top-0">
+                        <tr>
+                            <th class="text-left p-3 w-10">#</th>
+                            <th class="text-left p-3 w-24">Category</th>
+                            <th class="text-left p-3">Title</th>
+                            <th class="text-left p-3 w-24">Priority</th>
+                            <th class="text-left p-3 w-24">Status</th>
+                            <th class="text-left p-3 w-36">Created</th>
+                            <th class="text-left p-3 w-32">Deadline</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="divide-y divide-border">
+                        <!-- Rows injected by JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- PROGRESS BAR -->
+            <div class="mt-4 flex items-center gap-3">
+                <span id="progressText" class="text-muted text-sm">Progress: 0 / 0</span>
+                <div class="flex-1 h-2 bg-input rounded-full overflow-hidden">
+                    <div id="progressBar" class="h-full bg-green transition-all duration-300"
+                         style="width:0%"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ===== FOOTER ===== -->
+    <footer class="bg-card border-t border-border h-[36px] flex items-center justify-center shrink-0">
+        <p class="text-muted text-xs">by allen, biancs, cassy, cath, ches, jang, rub, jhade, &amp; paulo</p>
+    </footer>
+
+    <script>
+        // =========================================================================
+        // CONSTANTS
+        // =========================================================================
+        const PRIORITY_ORDER = { HIGH: 1, MEDIUM: 2, LOW: 3 };
+        const LS_KEY         = 'taskflow_tasks';
+        const LS_ID          = 'taskflow_nextId';
+
+        // =========================================================================
+        // STATE
+        // =========================================================================
+        let tasks      = [];
+        let nextId     = 1;
+        let selectedId = null; // ID of the currently highlighted row
+
+        // =========================================================================
+        // PERSISTENCE — localStorage
+        // =========================================================================
+
+        /** Saves tasks array and nextId counter to localStorage. */
+        function saveTasks() {
+            localStorage.setItem(LS_KEY, JSON.stringify(tasks));
+            localStorage.setItem(LS_ID,  JSON.stringify(nextId));
+        }
+
+        /** Loads tasks and nextId from localStorage on page load. */
+        function loadTasks() {
+            const raw = localStorage.getItem(LS_KEY);
+            const rid = localStorage.getItem(LS_ID);
+            if (raw) tasks  = JSON.parse(raw);
+            if (rid) nextId = JSON.parse(rid);
+        }
+
+        // =========================================================================
+        // DATE HELPERS
+        // =========================================================================
+
+        /**
+         * Formats a YYYY-MM-DD string into a readable date like "Oct 05, 2025".
+         * Returns "-" if the value is empty or malformed.
+         */
+        function formatDate(iso) {
+            if (!iso) return '-';
+            const parts = iso.split('-');
+            if (parts.length !== 3) return iso;
+            const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun',
+                            'Jul','Aug','Sep','Oct','Nov','Dec'];
+            const [y, m, d] = parts;
+            return `${MONTHS[parseInt(m, 10) - 1]} ${d}, ${y}`;
+        }
+
+        /** Returns today's date as YYYY-MM-DD. */
+        function todayISO() {
+            return new Date().toISOString().split('T')[0];
+        }
+
+        /** Returns true if the string is a valid YYYY-MM-DD date. */
+        function isValidDate(str) {
+            return /^\d{4}-\d{2}-\d{2}$/.test(str);
+        }
+
+        // =========================================================================
+        // FORM HELPERS
+        // =========================================================================
+
+        /** Clears all add-task form inputs. */
+        function clearForm() {
+            titleEl.value    = '';
+            descEl.value     = '';
+            deadlineEl.value = '';
+        }
+
+        // =========================================================================
+        // TASK OPERATIONS
+        // =========================================================================
+
+        /**
+         * Validates inputs and adds a new task.
+         * Rules:
+         *   - Title is required (max 80 chars)
+         *   - Deadline is required for ALL categories
+         *   - Deadline must match YYYY-MM-DD format
+         */
+        function addTask() {
+            const title    = titleEl.value.trim();
+            const desc     = descEl.value.trim();
+            const category = categoryEl.value;
+            const priority = priorityEl.value;
+            const deadline = deadlineEl.value.trim();
+
+            // Validate title
+            if (!title) {
+                alert('Title is required!');
+                titleEl.focus();
+                return;
+            }
+            if (title.length > 80) {
+                alert('Title must be 80 characters or fewer.');
+                titleEl.focus();
+                return;
+            }
+
+            // Validate deadline (required for all categories)
+            if (!deadline) {
+                alert('Deadline is required!');
+                deadlineEl.focus();
+                return;
+            }
+            if (!isValidDate(deadline)) {
+                alert('Deadline must be in YYYY-MM-DD format (e.g. 2025-12-31).');
+                deadlineEl.focus();
+                return;
+            }
+
+            // Build task object — no location field
+            const newTask = {
+                id:          nextId++,
+                category:    category,
+                title:       title,
+                description: desc,
+                priority:    priority,
+                deadline:    deadline,
+                completed:   false,
+                createdAt:   todayISO()
+            };
+
+            tasks.push(newTask);
+            saveTasks();
+            clearForm();
+            renderTable();
+        }
+
+        /**
+         * Toggles the completed status of the selected task.
+         */
+        function toggleComplete() {
+            if (selectedId === null) { alert('Select a task first.'); return; }
+            const task = tasks.find(t => t.id === selectedId);
+            if (task) {
+                task.completed = !task.completed;
+                saveTasks();
+                renderTable();
+            }
+        }
+
+        /**
+         * Deletes the selected task after user confirmation.
+         */
+        function deleteTask() {
+            if (selectedId === null) { alert('Select a task first.'); return; }
+            if (!confirm('Delete this task?')) return;
+            tasks      = tasks.filter(t => t.id !== selectedId);
+            selectedId = null;
+            saveTasks();
+            renderTable();
+        }
+
+        /**
+         * Sorts all tasks HIGH → MEDIUM → LOW and resets the filter to All.
+         */
+        function sortByPriority() {
+            tasks.sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
+            filterEl.value = 'All';
+            saveTasks();
+            renderTable();
+        }
+
+        // =========================================================================
+        // FILTERING
+        // =========================================================================
+
+        /** Returns the subset of tasks that match the currently selected filter. */
+        function getFilteredTasks() {
+            switch (filterEl.value) {
+                case 'Pending':   return tasks.filter(t => !t.completed);
+                case 'Completed': return tasks.filter(t =>  t.completed);
+                case 'High':      return tasks.filter(t => t.priority === 'HIGH');
+                case 'Medium':    return tasks.filter(t => t.priority === 'MEDIUM');
+                case 'Low':       return tasks.filter(t => t.priority === 'LOW');
+                default:          return [...tasks];
+            }
+        }
+
+        // =========================================================================
+        // STATS & PROGRESS BAR
+        // =========================================================================
+
+        /** Updates the header stats line and the progress bar. */
+        function updateStats() {
+            const total   = tasks.length;
+            const done    = tasks.filter(t => t.completed).length;
+            const pending = total - done;
+            const pct     = total === 0 ? 0 : Math.round((done / total) * 100);
+
+            statsEl.textContent        = `${total} tasks | ${pending} pending | ${done} done`;
+            progressTextEl.textContent = `Progress: ${done} / ${total}`;
+            progressBarEl.style.width  = `${pct}%`;
+        }
+
+        // =========================================================================
+        // RENDER
+        // =========================================================================
+
+        /**
+         * Clears and redraws the task table from the filtered task list.
+         *
+         * Columns: # | Category | Title | Priority | Status | Created | Deadline
+         *
+         * - All task types show their deadline in the Deadline column.
+         * - Empty state message shown when no tasks match the filter.
+         * - Selected row highlighted with blue left border + blue tint.
+         */
+        function renderTable() {
+            const filtered = getFilteredTasks();
+            tableBodyEl.innerHTML = '';
+
+            // Empty state
+            if (filtered.length === 0) {
+                tableBodyEl.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="p-8 text-center text-muted">
+                            No tasks found.
+                        </td>
+                    </tr>`;
+                updateStats();
+                return;
+            }
+
+            filtered.forEach((task, index) => {
+                const row        = document.createElement('tr');
+                const isSelected = task.id === selectedId;
+
+                // Highlight selected row with blue accent
+                row.className  = isSelected
+                    ? 'bg-sel/30 border-l-2 border-l-blue cursor-pointer'
+                    : 'hover:bg-input/40 cursor-pointer';
+                row.dataset.id = task.id;
+
+                const statusClass  = task.completed ? 'text-green' : 'text-gold';
+                const statusText   = task.completed ? 'Done' : 'Pending';
+
+                // Deadline: blue when set, muted dash when absent
+                const deadlineCell = task.deadline
+                    ? `<span class="text-blue">${formatDate(task.deadline)}</span>`
+                    : `<span class="text-muted">-</span>`;
+
+                row.innerHTML = `
+                    <td class="p-3">${index + 1}</td>
+                    <td class="p-3">${task.category}</td>
+                    <td class="p-3 font-medium">${task.title}</td>
+                    <td class="p-3">${task.priority}</td>
+                    <td class="p-3 font-bold ${statusClass}">${statusText}</td>
+                    <td class="p-3 text-muted">${formatDate(task.createdAt)}</td>
+                    <td class="p-3 text-sm">${deadlineCell}</td>
+                `;
+
+                tableBodyEl.appendChild(row);
+            });
+
+            updateStats();
+        }
+
+        // =========================================================================
+        // DOM REFERENCES
+        // =========================================================================
+        const categoryEl     = document.getElementById('category');
+        const titleEl        = document.getElementById('title');
+        const descEl         = document.getElementById('description');
+        const priorityEl     = document.getElementById('priority');
+        const deadlineEl     = document.getElementById('deadline');
+        const tableBodyEl    = document.getElementById('tableBody');
+        const filterEl       = document.getElementById('filter');
+        const statsEl        = document.getElementById('stats');
+        const progressTextEl = document.getElementById('progressText');
+        const progressBarEl  = document.getElementById('progressBar');
+
+        // =========================================================================
+        // EVENT LISTENERS
+        // =========================================================================
+
+        document.getElementById('btnAdd').addEventListener('click', addTask);
+
+        // Enter key in title field submits the form
+        titleEl.addEventListener('keydown', e => { if (e.key === 'Enter') addTask(); });
+
+        document.getElementById('btnClear').addEventListener('click', clearForm);
+        filterEl.addEventListener('change', renderTable);
+        document.getElementById('btnToggle').addEventListener('click', toggleComplete);
+        document.getElementById('btnDelete').addEventListener('click', deleteTask);
+        document.getElementById('btnSort').addEventListener('click', sortByPriority);
+
+        // Row click — select/highlight a task
+        tableBodyEl.addEventListener('click', e => {
+            const row = e.target.closest('tr');
+            if (row && row.dataset.id) {
+                selectedId = parseInt(row.dataset.id, 10);
+                renderTable();
+            }
+        });
+
+        // =========================================================================
+        // INIT — load saved data; seed sample tasks only on first run
+        // =========================================================================
+        loadTasks();
+
+        if (tasks.length === 0) {
+            tasks = [
+                {
+                    id: nextId++, category: 'School',
+                    title: 'Submit OOP Project',
+                    description: 'Final Java project submission',
+                    priority: 'HIGH', deadline: '2025-12-15',
+                    completed: false, createdAt: '2025-10-01'
+                },
+                {
+                    id: nextId++, category: 'Personal',
+                    title: 'Buy groceries',
+                    description: 'Milk, eggs, bread, coffee',
+                    priority: 'MEDIUM', deadline: '2025-10-10',
+                    completed: true, createdAt: '2025-10-02'
+                },
+                {
+                    id: nextId++, category: 'School',
+                    title: 'Review lab report',
+                    description: "Check partner's lab write-up",
+                    priority: 'MEDIUM', deadline: '2025-12-10',
+                    completed: false, createdAt: '2025-10-03'
+                },
+                {
+                    id: nextId++, category: 'Personal',
+                    title: 'Morning jog',
+                    description: '30-minute run at the park',
+                    priority: 'LOW', deadline: '2025-10-20',
+                    completed: false, createdAt: '2025-10-04'
+                },
+                {
+                    id: nextId++, category: 'School',
+                    title: 'Prepare presentation slides',
+                    description: 'OOP design patterns presentation',
+                    priority: 'HIGH', deadline: '2025-12-20',
+                    completed: false, createdAt: '2025-10-05'
+                },
+            ];
+            saveTasks();
+        }
+
+        renderTable();
+    </script>
+</body>
+</html>
